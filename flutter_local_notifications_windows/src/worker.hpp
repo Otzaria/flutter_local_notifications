@@ -18,10 +18,12 @@ class NotificationWorker {
   ~NotificationWorker();
 
   /// Queues [job] and returns immediately.
-  void post(std::function<void()> job);
+  /// Returns false when shutdown has already started.
+  bool post(std::function<void()> job);
 
   /// Queues [job] and blocks until it has run.
-  void invoke(std::function<void()> job);
+  /// Returns false when shutdown has already started.
+  bool invoke(std::function<void()> job);
 
  private:
   void run();

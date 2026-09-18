@@ -1,5 +1,7 @@
 #include <windows.h>  // <-- This must be the first Windows header
 
+#include <memory>
+
 #include <winrt/base.h>
 
 #include "worker.hpp"
@@ -15,29 +17,40 @@ NotificationWorker::~NotificationWorker() {
   if (thread.joinable()) thread.join();
 }
 
-void NotificationWorker::post(std::function<void()> job) {
+bool NotificationWorker::post(std::function<void()> job) {
   {
     std::lock_guard<std::mutex> lock(mutex);
-    if (stopping) return;
+    if (stopping) return false;
     jobs.push_back(std::move(job));
   }
   signal.notify_one();
+  return true;
 }
 
-void NotificationWorker::invoke(std::function<void()> job) {
-  std::mutex done_mutex;
-  std::condition_variable done_signal;
-  bool done = false;
-  post([&] {
-    job();
-    {
-      std::lock_guard<std::mutex> lock(done_mutex);
-      done = true;
+bool NotificationWorker::invoke(std::function<void()> job) {
+  struct InvocationState {
+    std::mutex mutex;
+    std::condition_variable signal;
+    bool done = false;
+  };
+  const auto state = std::make_shared<InvocationState>();
+  if (!post([job = std::move(job), state] {
+    try {
+      job();
+    } catch (...) {
+      // The caller receives its default result, but must never wait forever.
     }
-    done_signal.notify_one();
-  });
-  std::unique_lock<std::mutex> lock(done_mutex);
-  done_signal.wait(lock, [&] { return done; });
+    {
+      std::lock_guard<std::mutex> lock(state->mutex);
+      state->done = true;
+    }
+    state->signal.notify_one();
+  })) {
+    return false;
+  }
+  std::unique_lock<std::mutex> lock(state->mutex);
+  state->signal.wait(lock, [&] { return state->done; });
+  return true;
 }
 
 void NotificationWorker::run() {
