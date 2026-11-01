@@ -116,15 +116,15 @@ NativeUpdateResult updateNotification(NativePlugin* plugin, int id, NativeString
 
 void cancelAll(NativePlugin* plugin) {
   plugin->worker.post([plugin] {
-  if (!plugin->isReady) return;
-  if (plugin->hasIdentity) {
-    plugin->history.value().Clear();
-  } else {
-    plugin->history.value().Clear(plugin->aumid);
-  }
-  for (const auto notification : plugin->notifier.value().GetScheduledToastNotifications()) {
-    plugin->notifier.value().RemoveFromSchedule(notification);
-  }
+    if (!plugin->isReady) return;
+    if (plugin->hasIdentity) {
+      plugin->history.value().Clear();
+    } else {
+      plugin->history.value().Clear(plugin->aumid);
+    }
+    for (const auto notification : plugin->notifier.value().GetScheduledToastNotifications()) {
+      plugin->notifier.value().RemoveFromSchedule(notification);
+    }
   });
 }
 
@@ -141,22 +141,22 @@ NativeNotificationDetails* getActiveNotifications(NativePlugin* plugin, int* siz
   NativeNotificationDetails* out = nullptr;
   int count = 0;
   plugin->worker.invoke([plugin, &out, &count] {
-  // TODO: Get more details here
-  if (!plugin->isReady || !plugin->hasIdentity) {
-    return;
-  }
-  int* size = &count;
-  const auto active = plugin->history.value().GetHistory();
-  *size = active.Size();
-  const auto result = new NativeNotificationDetails[*size];
-  int index = 0;
-  for (const auto notification : active) {
-    const auto tag = notification.Tag();
-    const auto tagStr = winrt::to_string(tag);
-    const auto tagInt = std::stoi(tagStr);
-    result[index++].id = tagInt;
-  }
-  out = result;
+    // TODO: Get more details here
+    if (!plugin->isReady || !plugin->hasIdentity) {
+      return;
+    }
+    int* size = &count;
+    const auto active = plugin->history.value().GetHistory();
+    *size = active.Size();
+    const auto result = new NativeNotificationDetails[*size];
+    int index = 0;
+    for (const auto notification : active) {
+      const auto tag = notification.Tag();
+      const auto tagStr = winrt::to_string(tag);
+      const auto tagInt = std::stoi(tagStr);
+      result[index++].id = tagInt;
+    }
+    out = result;
   });
   *size = count;
   return out;
@@ -166,22 +166,22 @@ NativeNotificationDetails* getPendingNotifications(NativePlugin* plugin, int* si
   NativeNotificationDetails* out = nullptr;
   int count = 0;
   plugin->worker.invoke([plugin, &out, &count] {
-  // TODO: Get more details here
-  if (!plugin->isReady) {
-    return;
-  }
-  int* size = &count;
-  const auto pending = plugin->notifier.value().GetScheduledToastNotifications();
-  *size = pending.Size();
-  const auto result = new NativeNotificationDetails[*size];
-  int index = 0;
-  for (const auto notification : pending) {
-    const auto tag = notification.Tag();
-    const auto tagStr = winrt::to_string(tag);
-    const auto tagInt = std::stoi(tagStr);
-    result[index++].id = tagInt;
-  }
-  out = result;
+    // TODO: Get more details here
+    if (!plugin->isReady) {
+      return;
+    }
+    int* size = &count;
+    const auto pending = plugin->notifier.value().GetScheduledToastNotifications();
+    *size = pending.Size();
+    const auto result = new NativeNotificationDetails[*size];
+    int index = 0;
+    for (const auto notification : pending) {
+      const auto tag = notification.Tag();
+      const auto tagStr = winrt::to_string(tag);
+      const auto tagInt = std::stoi(tagStr);
+      result[index++].id = tagInt;
+    }
+    out = result;
   });
   *size = count;
   return out;
