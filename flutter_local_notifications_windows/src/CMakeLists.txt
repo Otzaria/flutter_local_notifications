@@ -9,6 +9,7 @@ add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 
 add_library(flutter_local_notifications_windows SHARED
   "ffi_api.cpp"
+  "ffi_memory.cpp"
   "plugin.cpp"
   "utils.cpp"
   "worker.cpp"
