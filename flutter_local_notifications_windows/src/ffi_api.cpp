@@ -186,4 +186,3 @@ NativeNotificationDetails* getPendingNotifications(NativePlugin* plugin, int* si
   *size = count;
   return out;
 }
-
