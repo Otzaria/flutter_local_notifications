@@ -187,14 +187,3 @@ NativeNotificationDetails* getPendingNotifications(NativePlugin* plugin, int* si
   return out;
 }
 
-void freeDetailsArray(NativeNotificationDetails* ptr) { delete[] ptr; }
-
-void freeLaunchDetails(NativeLaunchDetails details) {
-  if (details.payload != nullptr) delete[] details.payload;
-  for (int index = 0; index < details.data.size; index++) {
-    const auto pair = details.data.entries[index];
-    delete pair.key;
-    delete pair.value;
-  }
-  if (details.data.entries != nullptr) delete[] details.data.entries;
-}

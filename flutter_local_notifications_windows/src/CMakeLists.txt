@@ -7,6 +7,7 @@ project(flutter_local_notifications_windows_library VERSION 1.0.0 LANGUAGES CXX)
 
 add_library(flutter_local_notifications_windows SHARED
   "ffi_api.cpp"
+  "ffi_memory.cpp"
   "plugin.cpp"
   "utils.cpp"
   "worker.cpp"
