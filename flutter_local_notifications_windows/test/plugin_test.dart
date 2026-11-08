@@ -35,6 +35,22 @@ void main() => group('Plugin', () {
     plugin.dispose();
   });
 
+  test('rejects malformed hex GUIDs before allocating native state', () async {
+    final FlutterLocalNotificationsWindows plugin =
+        FlutterLocalNotificationsWindows();
+    await expectLater(
+      plugin.initialize(
+        settings: const WindowsInitializationSettings(
+          appName: 'test',
+          appUserModelId: 'com.test.test',
+          guid: 'zzzzzzzz-049e-422f-b30f-863694de08c8',
+        ),
+      ),
+      throwsArgumentError,
+    );
+    plugin.dispose();
+  });
+
   test('cannot be used before initializing', () async {
     final FlutterLocalNotificationsWindows plugin =
         FlutterLocalNotificationsWindows();
