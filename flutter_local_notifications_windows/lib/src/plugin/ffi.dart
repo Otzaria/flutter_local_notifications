@@ -17,8 +17,9 @@ NotificationsPluginBindings _backgroundBindings() =>
 
 List<int> _queryNotificationIds((int pluginAddress, bool pending) request) {
   final NotificationsPluginBindings bindings = _backgroundBindings();
-  final Pointer<NativePlugin> plugin =
-      Pointer<NativePlugin>.fromAddress(request.$1);
+  final Pointer<NativePlugin> plugin = Pointer<NativePlugin>.fromAddress(
+    request.$1,
+  );
   return using((Arena arena) {
     final Pointer<Int> length = arena<Int>();
     final Pointer<NativeNotificationDetails> array = request.$2
@@ -38,8 +39,9 @@ int _updateNotificationBindings(
   (int pluginAddress, int id, Map<String, String> values) request,
 ) {
   final NotificationsPluginBindings bindings = _backgroundBindings();
-  final Pointer<NativePlugin> plugin =
-      Pointer<NativePlugin>.fromAddress(request.$1);
+  final Pointer<NativePlugin> plugin = Pointer<NativePlugin>.fromAddress(
+    request.$1,
+  );
   return using((Arena arena) {
     return bindings
         .updateNotification(plugin, request.$2, request.$3.toNativeMap(arena))
@@ -254,8 +256,7 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
   }
 
   @override
-  Future<List<PendingNotificationRequest>>
-  pendingNotificationRequests() async {
+  Future<List<PendingNotificationRequest>> pendingNotificationRequests() async {
     if (!_isReady) {
       throw StateError(
         'Flutter Local Notifications must be initialized before use',
