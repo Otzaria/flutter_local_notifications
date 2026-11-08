@@ -152,7 +152,9 @@ void cancelNotification(NativePlugin* plugin, int id) {
 // out-of-range tags are skipped rather than throwing after allocating a
 // partially filled native array or reporting a non-null size with null data.
 template <typename Notifications>
-static NativeNotificationDetails* copyNotificationIds(const Notifications& notifications, int& count) {
+static NativeNotificationDetails* copyNotificationIds(
+  const Notifications& notifications, int& count
+) {
   std::vector<int> ids;
   for (const auto& notification : notifications) {
     int id = 0;
