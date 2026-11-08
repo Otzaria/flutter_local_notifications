@@ -43,6 +43,16 @@ jobs:
           ASAN_OPTIONS: alloc_dealloc_mismatch=1:detect_leaks=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
         run: ./notification_id_test
+      - name: Build callback shutdown gate with sanitizers
+        run: >-
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -pthread
+          -fsanitize=address,undefined -fno-omit-frame-pointer -fno-pie -no-pie
+          src/ffi_memory.cpp test/native/callback_gate_test.cpp -o callback_gate_test
+      - name: Exercise late callbacks after close
+        env:
+          ASAN_OPTIONS: alloc_dealloc_mismatch=1:detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ./callback_gate_test
       - name: Exercise the actual C ABI deallocators
         env:
           ASAN_OPTIONS: alloc_dealloc_mismatch=1:detect_leaks=1
