@@ -2,7 +2,11 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Data.Xml.Dom.h>
 
+#include <limits>
+#include <memory>
 #include <vector>
+
+#include "notification_ids.hpp"
 
 #include "ffi_api.h"
 #include "plugin.hpp"
@@ -137,26 +141,31 @@ void cancelNotification(NativePlugin* plugin, int id) {
   });
 }
 
+// Toast history can include tags from other applications. Invalid and
+// out-of-range tags are skipped rather than throwing after allocating a
+// partially filled native array or reporting a non-null size with null data.
+template <typename Notifications>
+static NativeNotificationDetails* copyNotificationIds(const Notifications& notifications, int& count) {
+  std::vector<int> ids;
+  for (const auto& notification : notifications) {
+    int id = 0;
+    if (tryParseNotificationId(winrt::to_string(notification.Tag()), id)) ids.push_back(id);
+  }
+  if (ids.empty() || ids.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+    return nullptr;
+  }
+  auto result = std::make_unique<NativeNotificationDetails[]>(ids.size());
+  for (size_t index = 0; index < ids.size(); ++index) result[index].id = ids[index];
+  count = static_cast<int>(ids.size());
+  return result.release();
+}
+
 NativeNotificationDetails* getActiveNotifications(NativePlugin* plugin, int* size) {
   NativeNotificationDetails* out = nullptr;
   int count = 0;
   plugin->worker.invoke([plugin, &out, &count] {
-    // TODO: Get more details here
-    if (!plugin->isReady || !plugin->hasIdentity) {
-      return;
-    }
-    int* size = &count;
-    const auto active = plugin->history.value().GetHistory();
-    *size = active.Size();
-    const auto result = new NativeNotificationDetails[*size];
-    int index = 0;
-    for (const auto notification : active) {
-      const auto tag = notification.Tag();
-      const auto tagStr = winrt::to_string(tag);
-      const auto tagInt = std::stoi(tagStr);
-      result[index++].id = tagInt;
-    }
-    out = result;
+    if (!plugin->isReady || !plugin->hasIdentity) return;
+    out = copyNotificationIds(plugin->history.value().GetHistory(), count);
   });
   *size = count;
   return out;
@@ -166,22 +175,8 @@ NativeNotificationDetails* getPendingNotifications(NativePlugin* plugin, int* si
   NativeNotificationDetails* out = nullptr;
   int count = 0;
   plugin->worker.invoke([plugin, &out, &count] {
-    // TODO: Get more details here
-    if (!plugin->isReady) {
-      return;
-    }
-    int* size = &count;
-    const auto pending = plugin->notifier.value().GetScheduledToastNotifications();
-    *size = pending.Size();
-    const auto result = new NativeNotificationDetails[*size];
-    int index = 0;
-    for (const auto notification : pending) {
-      const auto tag = notification.Tag();
-      const auto tagStr = winrt::to_string(tag);
-      const auto tagInt = std::stoi(tagStr);
-      result[index++].id = tagInt;
-    }
-    out = result;
+    if (!plugin->isReady) return;
+    out = copyNotificationIds(plugin->notifier.value().GetScheduledToastNotifications(), count);
   });
   *size = count;
   return out;

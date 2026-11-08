@@ -22,6 +22,8 @@ int main() {
 
   // Payload-only callbacks have no input map.
   freeLaunchDetails({true, action, copyString("payload"), {nullptr, 0}});
+  // Malformed optional map: its pointer can be null even with a bad size.
+  freeLaunchDetails({true, action, copyString("payload"), {nullptr, 2}});
 
   // Exercise every string and the map array repeatedly. AddressSanitizer must
   // check alloc_dealloc_mismatch=1 (Windows disables that check by default).
