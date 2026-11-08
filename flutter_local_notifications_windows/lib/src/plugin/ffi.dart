@@ -116,7 +116,9 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
       return true;
     }
     if (_disposeRequested || _nativeDisposalStarted) {
-      throw StateError('Flutter Local Notifications cannot be reinitialized after dispose');
+      throw StateError(
+        'Flutter Local Notifications cannot be reinitialized after dispose',
+      );
     }
     // Check before native allocation so bad GUIDs cannot leak a worker thread.
     if (!settings.guid.isValidGuid) {
@@ -148,16 +150,27 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
               _onDidReceiveNotificationResponse(details),
         );
     _launchCallback = callback;
-    final bool result = _bindings.init(
-      _plugin,
-      appName,
-      aumId,
-      guid,
-      iconPath,
-      callback.nativeFunction,
-    );
-    _isReady = result;
-    return result;
+    try {
+      final bool result = _bindings.init(
+        _plugin,
+        appName,
+        aumId,
+        guid,
+        iconPath,
+        callback.nativeFunction,
+      );
+      _isReady = result;
+      if (!result) {
+        _disposeRequested = true;
+        _finishDisposeIfIdle();
+      }
+      return result;
+    } catch (_) {
+      _isReady = false;
+      _disposeRequested = true;
+      _finishDisposeIfIdle();
+      rethrow;
+    }
   });
 
   @override
