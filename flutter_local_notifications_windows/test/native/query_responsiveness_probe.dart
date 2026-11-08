@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:ffi';
 
+import 'package:test/test.dart';
+
 import 'package:flutter_local_notifications_platform_interface/flutter_local_notifications_platform_interface.dart';
 import 'package:flutter_local_notifications_windows/flutter_local_notifications_windows.dart';
 
@@ -8,7 +10,8 @@ void requireCondition(bool condition, String description) {
   if (!condition) throw StateError(description);
 }
 
-Future<void> main() async {
+void main() {
+  test('native 650ms stalls do not freeze queries or disposal', () async {
   final DynamicLibrary fixture = DynamicLibrary.open(
     'flutter_local_notifications_windows.dll',
   );
@@ -138,4 +141,5 @@ Future<void> main() async {
     'UI-isolate timer stalled for ${maxTickGap}ms',
   );
   print('UI timer: ${ticks} ticks; max gap: ${maxTickGap}ms (threshold 450ms)');
+  });
 }
