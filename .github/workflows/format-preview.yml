@@ -1,0 +1,29 @@
+name: Preview Dart format changes (audit)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/format-preview.yml'
+      - 'flutter_local_notifications_windows/lib/src/plugin/ffi.dart'
+      - 'flutter_local_notifications_windows/test/plugin_test.dart'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+      - name: Print exact formatting diff
+        run: |
+          dart format flutter_local_notifications_windows/lib/src/plugin/ffi.dart flutter_local_notifications_windows/test/plugin_test.dart
+          git --no-pager diff -- flutter_local_notifications_windows/lib/src/plugin/ffi.dart flutter_local_notifications_windows/test/plugin_test.dart
