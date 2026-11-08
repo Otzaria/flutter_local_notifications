@@ -1,4 +1,5 @@
 import 'dart:ffi';
+import 'dart:isolate';
 
 import 'package:ffi/ffi.dart';
 
@@ -8,6 +9,43 @@ import '../ffi/bindings.dart';
 import '../ffi/utils.dart';
 
 import 'base.dart';
+
+const String _nativeLibraryName = 'flutter_local_notifications_windows.dll';
+
+NotificationsPluginBindings _backgroundBindings() =>
+    NotificationsPluginBindings(DynamicLibrary.open(_nativeLibraryName));
+
+List<int> _queryNotificationIds((int pluginAddress, bool pending) request) {
+  final NotificationsPluginBindings bindings = _backgroundBindings();
+  final Pointer<NativePlugin> plugin =
+      Pointer<NativePlugin>.fromAddress(request.$1);
+  return using((Arena arena) {
+    final Pointer<Int> length = arena<Int>();
+    final Pointer<NativeNotificationDetails> array = request.$2
+        ? bindings.getPendingNotifications(plugin, length)
+        : bindings.getActiveNotifications(plugin, length);
+    try {
+      return <int>[
+        for (int index = 0; index < length.value; index++) array[index].id,
+      ];
+    } finally {
+      bindings.freeDetailsArray(array);
+    }
+  });
+}
+
+int _updateNotificationBindings(
+  (int pluginAddress, int id, Map<String, String> values) request,
+) {
+  final NotificationsPluginBindings bindings = _backgroundBindings();
+  final Pointer<NativePlugin> plugin =
+      Pointer<NativePlugin>.fromAddress(request.$1);
+  return using((Arena arena) {
+    return bindings
+        .updateNotification(plugin, request.$2, request.$3.toNativeMap(arena))
+        .value;
+  });
+}
 
 void _globalLaunchCallback(NativeLaunchDetails details) {
   FlutterLocalNotificationsWindows.instance?._onDidReceiveNotificationResponse(
@@ -42,14 +80,16 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
   late final NotificationsPluginBindings _bindings =
       NotificationsPluginBindings(_library);
 
-  late final DynamicLibrary _library = DynamicLibrary.open(
-    'flutter_local_notifications_windows.dll',
-  );
+  late final DynamicLibrary _library = DynamicLibrary.open(_nativeLibraryName);
 
   /// A pointer to the C++ handler class.
   late final Pointer<NativePlugin> _plugin;
 
   bool _isReady = false;
+  int _blockingCalls = 0;
+  bool _disposeRequested = false;
+  bool _nativeDisposed = false;
+  NativeCallable<NativeNotificationCallbackFunction>? _launchCallback;
 
   /// The last recorded launch details, if any.
   ///
@@ -90,17 +130,18 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
     final Pointer<Utf8> guid = settings.guid.toNativeUtf8(allocator: arena);
     final Pointer<Utf8> iconPath =
         settings.iconPath?.toNativeUtf8(allocator: arena) ?? nullptr;
-    final NativeNotificationCallback callback =
+    final NativeCallable<NativeNotificationCallbackFunction> callback =
         NativeCallable<NativeNotificationCallbackFunction>.listener(
           _globalLaunchCallback,
-        ).nativeFunction;
+        );
+    _launchCallback = callback;
     final bool result = _bindings.init(
       _plugin,
       appName,
       aumId,
       guid,
       iconPath,
-      callback,
+      callback.nativeFunction,
     );
     _isReady = result;
     return result;
@@ -108,16 +149,54 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
 
   @override
   void dispose() {
-    if (!_isReady) {
+    if (!_isReady && !_disposeRequested) {
       return;
     }
+    if (_isReady) {
+      _isReady = false;
+      _disposeRequested = true;
+      userCallback = null;
+      final NativeLaunchDetails? details = _details;
+      _details = null;
+      if (details != null) {
+        _bindings.freeLaunchDetails(details);
+      }
+    }
+    _finishDisposeIfIdle();
+  }
+
+  void _finishDisposeIfIdle() {
+    if (!_disposeRequested || _nativeDisposed || _blockingCalls != 0) {
+      return;
+    }
+    // NativePlugin::~NativePlugin joins its worker and revokes the COM class
+    // object before the Dart callback is closed.
     _bindings.disposePlugin(_plugin);
-    instance = null;
-    _isReady = false;
+    _nativeDisposed = true;
+    _disposeRequested = false;
+    _launchCallback?.close();
+    _launchCallback = null;
+    if (identical(instance, this)) {
+      instance = null;
+    }
+  }
+
+  void _beginBlockingCall() {
+    _blockingCalls++;
+  }
+
+  void _endBlockingCall() {
+    _blockingCalls--;
+    assert(_blockingCalls >= 0);
+    _finishDisposeIfIdle();
   }
 
   void _onDidReceiveNotificationResponse(NativeLaunchDetails details) {
     if (!_isReady) {
+      // dispose can be waiting for a helper-isolate query. The native callback
+      // remains registered until that query completes, so release late details
+      // instead of leaking their native strings.
+      _bindings.freeLaunchDetails(details);
       return;
     } else if (_details != null) {
       _bindings.freeLaunchDetails(_details!);
@@ -154,40 +233,48 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
   }
 
   @override
-  Future<List<ActiveNotification>> getActiveNotifications() async =>
-      using((Arena arena) {
-        if (!_isReady) {
-          throw StateError(
-            'Flutter Local Notifications must be initialized before use',
-          );
-        }
-        final Pointer<Int> length = arena<Int>();
-        final Pointer<NativeNotificationDetails> array = _bindings
-            .getActiveNotifications(_plugin, length);
-        final List<ActiveNotification> result = array.asActiveNotifications(
-          length.value,
-        );
-        _bindings.freeDetailsArray(array);
-        return result;
-      });
-
-  @override
-  Future<List<PendingNotificationRequest>>
-  pendingNotificationRequests() async => using((Arena arena) {
+  Future<List<ActiveNotification>> getActiveNotifications() async {
     if (!_isReady) {
       throw StateError(
         'Flutter Local Notifications must be initialized before use',
       );
     }
-    final Pointer<Int> length = arena<Int>();
-    final Pointer<NativeNotificationDetails> array = _bindings
-        .getPendingNotifications(_plugin, length);
-    final List<PendingNotificationRequest> result = array.asPendingRequests(
-      length.value,
-    );
-    _bindings.freeDetailsArray(array);
-    return result;
-  });
+    final int pluginAddress = _plugin.address;
+    _beginBlockingCall();
+    try {
+      final List<int> ids = await Isolate.run(
+        () => _queryNotificationIds((pluginAddress, false)),
+      );
+      return <ActiveNotification>[
+        for (final int id in ids) ActiveNotification(id: id),
+      ];
+    } finally {
+      _endBlockingCall();
+    }
+  }
+
+  @override
+  Future<List<PendingNotificationRequest>>
+  pendingNotificationRequests() async {
+    if (!_isReady) {
+      throw StateError(
+        'Flutter Local Notifications must be initialized before use',
+      );
+    }
+    final int pluginAddress = _plugin.address;
+    _beginBlockingCall();
+    try {
+      final List<int> ids = await Isolate.run(
+        () => _queryNotificationIds((pluginAddress, true)),
+      );
+      return <PendingNotificationRequest>[
+        for (final int id in ids)
+          PendingNotificationRequest(id, null, null, null),
+      ];
+    } finally {
+      _endBlockingCall();
+    }
+  }
 
   @override
   Future<NotificationAppLaunchDetails?>
@@ -372,17 +459,22 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
   Future<NotificationUpdateResult> updateBindings({
     required int id,
     required Map<String, String> bindings,
-  }) async => using((Arena arena) {
+  }) async {
     if (!_isReady) {
       throw StateError(
         'Flutter Local Notifications must be initialized before use',
       );
     }
-    final NativeUpdateResult result = _bindings.updateNotification(
-      _plugin,
-      id,
-      bindings.toNativeMap(arena),
-    );
-    return getUpdateResult(result);
-  });
+    final int pluginAddress = _plugin.address;
+    final Map<String, String> values = Map<String, String>.of(bindings);
+    _beginBlockingCall();
+    try {
+      final int result = await Isolate.run(
+        () => _updateNotificationBindings((pluginAddress, id, values)),
+      );
+      return getUpdateResult(NativeUpdateResult.fromValue(result));
+    } finally {
+      _endBlockingCall();
+    }
+  }
 }
