@@ -1,0 +1,47 @@
+name: Windows notification query responsiveness
+
+on:
+  push:
+    branches: ['palmoni5/windows-query-helper-isolate-*']
+    paths:
+      - 'flutter_local_notifications_windows/lib/src/plugin/ffi.dart'
+      - 'flutter_local_notifications_windows/test/native/**'
+      - '.github/workflows/windows_query_responsiveness.yml'
+  pull_request:
+    paths:
+      - 'flutter_local_notifications_windows/lib/src/plugin/ffi.dart'
+      - 'flutter_local_notifications_windows/test/native/**'
+      - '.github/workflows/windows_query_responsiveness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  blocking-ffi-isolate-probe:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: flutter_local_notifications_windows
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Resolve Flutter/Dart dependencies
+        run: flutter pub get
+      - name: Build ABI-compatible slow native fixture
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'Visual C++ tools not found' }
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+          $command = "call `"$vcvars`" && cl /nologo /std:c++17 /EHsc /W4 /WX /LD test\native\query_latency_stub.cpp /Fe:flutter_local_notifications_windows.dll"
+          & cmd.exe /d /c $command
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Measure async FFI queries and disposal during 650ms native stalls
+        run: dart run test/native/query_responsiveness_probe.dart
