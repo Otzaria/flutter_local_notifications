@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ffi';
 import 'dart:isolate';
 
@@ -26,6 +27,9 @@ List<int> _queryNotificationIds((int pluginAddress, bool pending) request) {
         ? bindings.getPendingNotifications(plugin, length)
         : bindings.getActiveNotifications(plugin, length);
     try {
+      if (length.value < 0 || (length.value > 0 && array == nullptr)) {
+        throw StateError('Invalid native notification query array');
+      }
       return <int>[
         for (int index = 0; index < length.value; index++) array[index].id,
       ];
@@ -49,19 +53,19 @@ int _updateNotificationBindings(
   });
 }
 
-void _globalLaunchCallback(NativeLaunchDetails details) {
-  FlutterLocalNotificationsWindows.instance?._onDidReceiveNotificationResponse(
-    details,
+void _disposeNativePlugin(int pluginAddress) {
+  _backgroundBindings().disposePlugin(
+    Pointer<NativePlugin>.fromAddress(pluginAddress),
   );
 }
 
+final RegExp _guidPattern = RegExp(
+  r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-'
+  r'[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+);
+
 extension on String {
-  bool get isValidGuid =>
-      length == 36 &&
-      this[8] == '-' &&
-      this[13] == '-' &&
-      this[18] == '-' &&
-      this[23] == '-';
+  bool get isValidGuid => _guidPattern.hasMatch(this);
 }
 
 /// The Windows implementation of `package:flutter_local_notifications`.
@@ -90,7 +94,7 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
   bool _isReady = false;
   int _blockingCalls = 0;
   bool _disposeRequested = false;
-  bool _nativeDisposed = false;
+  bool _nativeDisposalStarted = false;
   NativeCallable<NativeNotificationCallbackFunction>? _launchCallback;
 
   /// The last recorded launch details, if any.
@@ -111,8 +115,10 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
     if (_isReady) {
       return true;
     }
-    // The C++ code will crash if there's an invalid GUID, so check it before
-    // createPlugin starts the native worker thread.
+    if (_disposeRequested || _nativeDisposalStarted) {
+      throw StateError('Flutter Local Notifications cannot be reinitialized after dispose');
+    }
+    // Check before native allocation so bad GUIDs cannot leak a worker thread.
     if (!settings.guid.isValidGuid) {
       throw ArgumentError.value(
         settings.guid,
@@ -122,6 +128,9 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
       );
     }
     _plugin = _bindings.createPlugin();
+    if (_plugin == nullptr) {
+      throw StateError('Failed to create native notification plugin');
+    }
     instance = this;
     userCallback = onDidReceiveNotificationResponse;
     final Pointer<Utf8> appName = settings.appName.toNativeUtf8(
@@ -135,7 +144,8 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
         settings.iconPath?.toNativeUtf8(allocator: arena) ?? nullptr;
     final NativeCallable<NativeNotificationCallbackFunction> callback =
         NativeCallable<NativeNotificationCallbackFunction>.listener(
-          _globalLaunchCallback,
+          (NativeLaunchDetails details) =>
+              _onDidReceiveNotificationResponse(details),
         );
     _launchCallback = callback;
     final bool result = _bindings.init(
@@ -169,13 +179,22 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
   }
 
   void _finishDisposeIfIdle() {
-    if (!_disposeRequested || _nativeDisposed || _blockingCalls != 0) {
+    if (!_disposeRequested || _nativeDisposalStarted || _blockingCalls != 0) {
       return;
     }
-    // NativePlugin::~NativePlugin joins its worker and revokes the COM class
-    // object before the Dart callback is closed.
-    _bindings.disposePlugin(_plugin);
-    _nativeDisposed = true;
+    _nativeDisposalStarted = true;
+    // NativePlugin teardown can join a slow worker; never block the UI isolate.
+    unawaited(_disposeNativePluginAsync(_plugin.address));
+  }
+
+  Future<void> _disposeNativePluginAsync(int pluginAddress) async {
+    try {
+      await Isolate.run(() => _disposeNativePlugin(pluginAddress));
+    } catch (_) {
+      // Do not close a callback until the native owner has been released.
+      _nativeDisposalStarted = false;
+      rethrow;
+    }
     _disposeRequested = false;
     _launchCallback?.close();
     _launchCallback = null;
