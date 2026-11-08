@@ -7,9 +7,8 @@
 // Shared by NativePlugin and retained COM activators. Closing the callback
 // pointer before an old activator is released is otherwise undefined in Dart.
 class NotificationCallbackGate {
- public:
-  explicit NotificationCallbackGate(NativeNotificationCallback callback)
-      : callback_(callback) {}
+public:
+  explicit NotificationCallbackGate(NativeNotificationCallback callback) : callback_(callback) {}
 
   NotificationCallbackGate(const NotificationCallbackGate&) = delete;
   NotificationCallbackGate& operator=(const NotificationCallbackGate&) = delete;
@@ -30,7 +29,7 @@ class NotificationCallbackGate {
     closed_ = true;
   }
 
- private:
+private:
   std::mutex mutex_;
   bool closed_ = false;
   NativeNotificationCallback callback_ = nullptr;
