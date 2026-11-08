@@ -77,8 +77,8 @@ void main() => group('Plugin', () {
         FlutterLocalNotificationsWindows();
     await plugin.initialize(settings: goodSettings);
 
-    final Future<List<PendingNotificationRequest>> pending =
-        plugin.pendingNotificationRequests();
+    final Future<List<PendingNotificationRequest>> pending = plugin
+        .pendingNotificationRequests();
     plugin.dispose();
 
     await expectLater(pending, completes);
@@ -87,19 +87,22 @@ void main() => group('Plugin', () {
     plugin.dispose();
   });
 
-  test('notification queries and updates complete through the native worker', () async {
-    final FlutterLocalNotificationsWindows plugin =
-        FlutterLocalNotificationsWindows();
-    await plugin.initialize(settings: goodSettings);
+  test(
+    'notification queries and updates complete through the native worker',
+    () async {
+      final FlutterLocalNotificationsWindows plugin =
+          FlutterLocalNotificationsWindows();
+      await plugin.initialize(settings: goodSettings);
 
-    await expectLater(plugin.getActiveNotifications(), completes);
-    await expectLater(plugin.pendingNotificationRequests(), completes);
-    await expectLater(
-      plugin.updateBindings(id: -1, bindings: <String, String>{'value': '1'}),
-      completes,
-    );
-    plugin.dispose();
-  });
+      await expectLater(plugin.getActiveNotifications(), completes);
+      await expectLater(plugin.pendingNotificationRequests(), completes);
+      await expectLater(
+        plugin.updateBindings(id: -1, bindings: <String, String>{'value': '1'}),
+        completes,
+      );
+      plugin.dispose();
+    },
+  );
 
   test('cannot be used after disposed', () async {
     final FlutterLocalNotificationsWindows plugin =
