@@ -2,7 +2,6 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Data.Xml.Dom.h>
 
-#include <limits>
 #include <memory>
 #include <vector>
 
@@ -156,9 +155,7 @@ static NativeNotificationDetails* copyNotificationIds(
     int id = 0;
     if (tryParseNotificationId(winrt::to_string(notification.Tag()), id)) ids.push_back(id);
   }
-  if (ids.empty() || ids.size() > static_cast<size_t>((std::numeric_limits<int>::max)())) {
-    return nullptr;
-  }
+  if (ids.empty()) return nullptr;
   auto result = std::make_unique<NativeNotificationDetails[]>(ids.size());
   for (size_t index = 0; index < ids.size(); ++index) result[index].id = ids[index];
   count = static_cast<int>(ids.size());

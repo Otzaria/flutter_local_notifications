@@ -79,7 +79,7 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
         FlutterLocalNotificationsWindows();
   }
 
-  /// The global instance of this plugin. Used in [_globalLaunchCallback].
+  /// The most recently initialized instance, cleared after native disposal.
   static FlutterLocalNotificationsWindows? instance;
 
   /// The FFI generated bindings to the native code.
@@ -130,9 +130,6 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
       );
     }
     _plugin = _bindings.createPlugin();
-    if (_plugin == nullptr) {
-      throw StateError('Failed to create native notification plugin');
-    }
     instance = this;
     userCallback = onDidReceiveNotificationResponse;
     final Pointer<Utf8> appName = settings.appName.toNativeUtf8(
@@ -150,27 +147,15 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
               _onDidReceiveNotificationResponse(details),
         );
     _launchCallback = callback;
-    try {
-      final bool result = _bindings.init(
-        _plugin,
-        appName,
-        aumId,
-        guid,
-        iconPath,
-        callback.nativeFunction,
-      );
-      _isReady = result;
-      if (!result) {
-        _disposeRequested = true;
-        _finishDisposeIfIdle();
-      }
-      return result;
-    } catch (_) {
-      _isReady = false;
-      _disposeRequested = true;
-      _finishDisposeIfIdle();
-      rethrow;
-    }
+    _isReady = _bindings.init(
+      _plugin,
+      appName,
+      aumId,
+      guid,
+      iconPath,
+      callback.nativeFunction,
+    );
+    return _isReady;
   });
 
   @override
