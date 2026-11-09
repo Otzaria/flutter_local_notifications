@@ -2,7 +2,7 @@ name: Windows FFI memory ownership
 
 on:
   push:
-    branches: ['palmoni5/fix-windows-notification-memory-*']
+    branches: [windows-worker-thread-lazy-library]
     paths:
       - 'flutter_local_notifications_windows/src/**'
       - 'flutter_local_notifications_windows/test/native/**'
