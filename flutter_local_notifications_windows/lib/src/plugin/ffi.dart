@@ -189,9 +189,10 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
     try {
       await Isolate.run(() => _disposeNativePlugin(pluginAddress));
     } catch (_) {
-      // Do not close a callback until the native owner has been released.
+      // Keep the callback open until the native owner is released; calling
+      // dispose again retries. Rethrowing here would surface as unhandled.
       _nativeDisposalStarted = false;
-      rethrow;
+      return;
     }
     _disposeRequested = false;
     _launchCallback?.close();
