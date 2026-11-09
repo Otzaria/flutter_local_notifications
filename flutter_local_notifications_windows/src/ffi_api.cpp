@@ -70,6 +70,8 @@ static void removeScheduled(NativePlugin* plugin, const winrt::hstring& tag) {
 }
 
 bool showNotification(NativePlugin* plugin, int id, char* xml, NativeStringMap bindings) {
+  // Parsing is local, so a malformed document is still reported to the caller.
+  if (!isValidXml(xml)) return false;
   const string xmlCopy(xml);
   const auto bindingsCopy = copyMap(bindings);
   plugin->worker.post([plugin, id, xmlCopy, bindingsCopy] {
@@ -89,6 +91,7 @@ bool showNotification(NativePlugin* plugin, int id, char* xml, NativeStringMap b
 }
 
 bool scheduleNotification(NativePlugin* plugin, int id, char* xml, int time) {
+  if (!isValidXml(xml)) return false;
   const string xmlCopy(xml);
   plugin->worker.post([plugin, id, xmlCopy, time] {
     if (!plugin->isReady) return;
