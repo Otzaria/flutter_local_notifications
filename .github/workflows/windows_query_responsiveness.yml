@@ -2,7 +2,7 @@ name: Windows notification query responsiveness
 
 on:
   push:
-    branches: ['palmoni5/windows-query-helper-isolate-*']
+    branches: [windows-worker-thread-lazy-library]
     paths:
       - 'flutter_local_notifications_windows/lib/src/plugin/ffi.dart'
       - 'flutter_local_notifications_windows/test/native/**'
