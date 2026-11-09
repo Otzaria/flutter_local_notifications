@@ -67,10 +67,10 @@ void main() {
     });
     try {
       final Stopwatch queries = Stopwatch()..start();
-      final Future<List<ActiveNotification>> active =
-          plugin.getActiveNotifications();
-      final Future<List<PendingNotificationRequest>> pending =
-          plugin.pendingNotificationRequests();
+      final Future<List<ActiveNotification>> active = plugin
+          .getActiveNotifications();
+      final Future<List<PendingNotificationRequest>> pending = plugin
+          .pendingNotificationRequests();
       final Future<NotificationUpdateResult> update = plugin.updateBindings(
         id: 11,
         bindings: <String, String>{'value': '42'},
@@ -81,7 +81,10 @@ void main() {
         update.then<void>((_) {}),
       ]);
       queries.stop();
-      requireCondition((await active).length == 2, 'Active result was corrupted');
+      requireCondition(
+        (await active).length == 2,
+        'Active result was corrupted',
+      );
       requireCondition(
         (await pending).single.id == 31,
         'Pending result was corrupted',
@@ -107,8 +110,8 @@ void main() {
         requireCondition(failedSafely, 'Invalid native array was not rejected');
       }
 
-      final Future<List<PendingNotificationRequest>> inFlight =
-          plugin.pendingNotificationRequests();
+      final Future<List<PendingNotificationRequest>> inFlight = plugin
+          .pendingNotificationRequests();
       final Stopwatch quickDispose = Stopwatch()..start();
       plugin.dispose();
       quickDispose.stop();
@@ -139,6 +142,8 @@ void main() {
       maxTickGap < 450,
       'UI-isolate timer stalled for ${maxTickGap}ms',
     );
-    Zone.current.print('UI timer: $ticks ticks; max gap: ${maxTickGap}ms (threshold 450ms)');
+    Zone.current.print(
+      'UI timer: $ticks ticks; max gap: ${maxTickGap}ms (threshold 450ms)',
+    );
   });
 }
