@@ -33,6 +33,26 @@ jobs:
           g++ -std=c++17 -O1 -g -Wall -Wextra -Werror
           -fsanitize=address,undefined -fno-omit-frame-pointer -fno-pie -no-pie
           src/ffi_memory.cpp test/native/ffi_memory_test.cpp -o ffi_memory_test
+      - name: Build no-throw notification tag parser with sanitizers
+        run: >-
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Werror
+          -fsanitize=address,undefined -fno-omit-frame-pointer -fno-pie -no-pie
+          test/native/notification_id_test.cpp -o notification_id_test
+      - name: Check malformed notification tags with ASan and UBSan
+        env:
+          ASAN_OPTIONS: alloc_dealloc_mismatch=1:detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ./notification_id_test
+      - name: Build callback shutdown gate with sanitizers
+        run: >-
+          g++ -std=c++17 -O1 -g -Wall -Wextra -Werror -pthread
+          -fsanitize=address,undefined -fno-omit-frame-pointer -fno-pie -no-pie
+          src/ffi_memory.cpp test/native/callback_gate_test.cpp -o callback_gate_test
+      - name: Exercise late callbacks after close
+        env:
+          ASAN_OPTIONS: alloc_dealloc_mismatch=1:detect_leaks=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ./callback_gate_test
       - name: Exercise the actual C ABI deallocators
         env:
           ASAN_OPTIONS: alloc_dealloc_mismatch=1:detect_leaks=1
@@ -57,5 +77,16 @@ jobs:
           if (-not $vs) { throw 'Visual C++ tools not found' }
           $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
           $command = "call `"$vcvars`" && cl /nologo /std:c++17 /EHsc /Zi /W4 /WX /fsanitize=address src\ffi_memory.cpp test\native\ffi_memory_test.cpp /Fe:ffi_memory_test.exe && ffi_memory_test.exe"
+          & cmd.exe /d /c $command
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check native tag parsing on MSVC
+        shell: pwsh
+        working-directory: flutter_local_notifications_windows
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw 'Visual C++ tools not found' }
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+          $command = "call `"$vcvars`" && cl /nologo /std:c++17 /EHsc /W4 /WX test\native\notification_id_test.cpp /Fe:notification_id_test.exe && notification_id_test.exe"
           & cmd.exe /d /c $command
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

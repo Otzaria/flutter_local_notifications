@@ -2,9 +2,10 @@
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Data.Xml.Dom.h>
 
-#include <charconv>
-#include <thread>
+#include <memory>
 #include <vector>
+
+#include "notification_ids.hpp"
 
 #include "ffi_api.h"
 #include "plugin.hpp"
@@ -21,11 +22,7 @@ bool hasPackageIdentity() {
 
 NativePlugin* createPlugin() { return new NativePlugin(); }
 
-// Teardown waits for the worker, which may be stuck in a COM call, so it never runs
-// on the caller's thread. The reaper thread owns [plugin] from here on.
-void disposePlugin(NativePlugin* plugin) {
-  std::thread([plugin] { delete plugin; }).detach();
-}
+void disposePlugin(NativePlugin* plugin) { delete plugin; }
 
 bool init(
   NativePlugin* plugin, char* appName, char* aumId, char* guid, char* iconPath,
@@ -146,33 +143,31 @@ void cancelNotification(NativePlugin* plugin, int id) {
   });
 }
 
-// Toast history can hold tags this plugin did not set; those are skipped. The array
-// is published only once complete, so the caller never sees a count without data.
+// Toast history can include tags from other applications. Invalid and
+// out-of-range tags are skipped rather than throwing after allocating a
+// partially filled native array or reporting a non-null size with null data.
 template <typename Notifications>
-static NativeNotificationDetails* copyIds(const Notifications& notifications, int& count) {
+static NativeNotificationDetails* copyNotificationIds(
+  const Notifications& notifications, int& count
+) {
   std::vector<int> ids;
-  for (const auto notification : notifications) {
-    const auto tag = winrt::to_string(notification.Tag());
+  for (const auto& notification : notifications) {
     int id = 0;
-    const auto parsed = std::from_chars(tag.data(), tag.data() + tag.size(), id);
-    if (!tag.empty() && parsed.ec == std::errc() && parsed.ptr == tag.data() + tag.size()) {
-      ids.push_back(id);
-    }
+    if (tryParseNotificationId(winrt::to_string(notification.Tag()), id)) ids.push_back(id);
   }
   if (ids.empty()) return nullptr;
-  const auto result = new NativeNotificationDetails[ids.size()];
-  for (size_t index = 0; index < ids.size(); index++) result[index].id = ids[index];
+  auto result = std::make_unique<NativeNotificationDetails[]>(ids.size());
+  for (size_t index = 0; index < ids.size(); ++index) result[index].id = ids[index];
   count = static_cast<int>(ids.size());
-  return result;
+  return result.release();
 }
 
 NativeNotificationDetails* getActiveNotifications(NativePlugin* plugin, int* size) {
   NativeNotificationDetails* out = nullptr;
   int count = 0;
   plugin->worker.invoke([plugin, &out, &count] {
-    // TODO: Get more details here
     if (!plugin->isReady || !plugin->hasIdentity) return;
-    out = copyIds(plugin->history.value().GetHistory(), count);
+    out = copyNotificationIds(plugin->history.value().GetHistory(), count);
   });
   *size = count;
   return out;
@@ -182,9 +177,8 @@ NativeNotificationDetails* getPendingNotifications(NativePlugin* plugin, int* si
   NativeNotificationDetails* out = nullptr;
   int count = 0;
   plugin->worker.invoke([plugin, &out, &count] {
-    // TODO: Get more details here
     if (!plugin->isReady) return;
-    out = copyIds(plugin->notifier.value().GetScheduledToastNotifications(), count);
+    out = copyNotificationIds(plugin->notifier.value().GetScheduledToastNotifications(), count);
   });
   *size = count;
   return out;
