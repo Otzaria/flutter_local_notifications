@@ -33,6 +33,8 @@ jobs:
           channel: stable
       - name: Resolve Flutter/Dart dependencies
         run: flutter pub get
+      - name: Show Dart formatter's canonical output for QA
+        run: dart format --output=show test/native/query_responsiveness_probe.dart
       - name: Build ABI-compatible slow native fixture
         shell: pwsh
         run: |
