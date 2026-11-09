@@ -160,7 +160,7 @@ static NativeNotificationDetails* copyNotificationIds(
     int id = 0;
     if (tryParseNotificationId(winrt::to_string(notification.Tag()), id)) ids.push_back(id);
   }
-  if (ids.empty() || ids.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+  if (ids.empty() || ids.size() > static_cast<size_t>((std::numeric_limits<int>::max)())) {
     return nullptr;
   }
   auto result = std::make_unique<NativeNotificationDetails[]>(ids.size());

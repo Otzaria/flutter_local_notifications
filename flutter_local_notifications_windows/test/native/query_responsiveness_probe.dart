@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'dart:ffi';
 
-import 'package:test/test.dart';
-
 import 'package:flutter_local_notifications_platform_interface/flutter_local_notifications_platform_interface.dart';
 import 'package:flutter_local_notifications_windows/flutter_local_notifications_windows.dart';
+import 'package:test/test.dart';
 
 void requireCondition(bool condition, String description) {
   if (!condition) throw StateError(description);
@@ -95,7 +94,7 @@ void main() {
         queries.elapsedMilliseconds >= 600,
         'Fixture did not provide the intended blocking call',
       );
-      print('queries total: ${queries.elapsedMilliseconds} ms');
+      Zone.current.print('queries total: ${queries.elapsedMilliseconds} ms');
 
       for (final int mode in <int>[1, 2]) {
         setFailureMode(mode);
@@ -140,6 +139,6 @@ void main() {
       maxTickGap < 450,
       'UI-isolate timer stalled for ${maxTickGap}ms',
     );
-    print('UI timer: ${ticks} ticks; max gap: ${maxTickGap}ms (threshold 450ms)');
+    Zone.current.print('UI timer: $ticks ticks; max gap: ${maxTickGap}ms (threshold 450ms)');
   });
 }
