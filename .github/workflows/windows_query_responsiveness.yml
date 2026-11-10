@@ -2,7 +2,7 @@ name: Windows notification query responsiveness
 
 on:
   push:
-    branches: [windows-worker-thread-lazy-library]
+    branches: [windows-worker-thread-lazy-library, windows-worker-thread-lazy-library-23x]
     paths:
       - 'flutter_local_notifications_windows/lib/src/plugin/ffi.dart'
       - 'flutter_local_notifications_windows/test/native/**'
@@ -40,7 +40,7 @@ jobs:
           $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $vs) { throw 'Visual C++ tools not found' }
           $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
-          $command = "call `"$vcvars`" && cl /nologo /std:c++17 /EHsc /W4 /WX /LD test\native\query_latency_stub.cpp /Fe:flutter_local_notifications_windows.dll"
+          $command = "call `"$vcvars`" && cl /nologo /std:c++20 /EHsc /W4 /WX /LD test\native\query_latency_stub.cpp /Fe:flutter_local_notifications_windows.dll"
           & cmd.exe /d /c $command
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Measure async FFI queries and disposal during 650ms native stalls
