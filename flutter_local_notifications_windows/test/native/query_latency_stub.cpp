@@ -9,10 +9,20 @@ struct NativePlugin {
 };
 static std::atomic<int> failureMode {0};
 static std::atomic<int> createCount {0};
+static std::atomic<int> destroyCount {0};
+static std::atomic<int> initFailures {0};
+static std::atomic<int> initCount {0};
+static std::atomic<int64_t> scheduledTime {0};
+static std::atomic<uintptr_t> callbackAddress {0};
 static void delay() { std::this_thread::sleep_for(std::chrono::milliseconds(650)); }
 
 extern "C" FFI_PLUGIN_EXPORT void setQueryFailureMode(int mode) { failureMode = mode; }
 extern "C" FFI_PLUGIN_EXPORT int stubCreateCount() { return createCount.load(); }
+extern "C" FFI_PLUGIN_EXPORT int stubDestroyCount() { return destroyCount.load(); }
+extern "C" FFI_PLUGIN_EXPORT int stubInitCount() { return initCount.load(); }
+extern "C" FFI_PLUGIN_EXPORT void setInitFailures(int count) { initFailures = count; }
+extern "C" FFI_PLUGIN_EXPORT int64_t stubScheduledTime() { return scheduledTime.load(); }
+extern "C" FFI_PLUGIN_EXPORT uintptr_t stubCallbackAddress() { return callbackAddress.load(); }
 
 NativePlugin* createPlugin() {
   ++createCount;
@@ -23,18 +33,33 @@ bool init(
   NativeInitCallback onReady
 ) {
   plugin->callback = callback;
-  onReady(true);
+  callbackAddress = reinterpret_cast<uintptr_t>(callback);
+  ++initCount;
+  const bool success = initFailures.load() == 0;
+  if (!success) --initFailures;
+  onReady(success);
   return true;
 }
 void disposePlugin(NativePlugin* plugin) {
   delay();
+  ++destroyCount;
   delete plugin;
+}
+bool scheduleNotification(NativePlugin*, int, char*, int64_t time) {
+  scheduledTime = time;
+  return true;
 }
 NativeNotificationDetails* getActiveNotifications(NativePlugin*, int* size) {
   delay();
   const int mode = failureMode.exchange(0);
-  if (mode == 1) { *size = 2; return nullptr; }
-  if (mode == 2) { *size = -1; return nullptr; }
+  if (mode == 1) {
+    *size = 2;
+    return nullptr;
+  }
+  if (mode == 2) {
+    *size = -1;
+    return nullptr;
+  }
   *size = 2;
   return new NativeNotificationDetails[2] {{11}, {12}};
 }
