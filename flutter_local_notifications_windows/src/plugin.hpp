@@ -53,12 +53,18 @@ struct NativePlugin {
   // [worker] is destroyed first and tears its apartment down, so everything created
   // in that apartment is released on the worker beforehand.
   ~NativePlugin() {
-    worker.invoke([this] {
-      if (callbackGate) callbackGate->close();
-      if (registration != 0) CoRevokeClassObject(registration);
-      notifier.reset();
-      history.reset();
-    });
+    worker.invoke([this] { resetRegistration(); });
+  }
+
+  // Runs on the worker after a failed init or before its apartment is released.
+  void resetRegistration() {
+    isReady = false;
+    if (callbackGate) callbackGate->close();
+    callbackGate.reset();
+    if (registration != 0) CoRevokeClassObject(registration);
+    registration = 0;
+    notifier.reset();
+    history.reset();
   }
 
   /// Registers the given [callback] to run when a notification is pressed.

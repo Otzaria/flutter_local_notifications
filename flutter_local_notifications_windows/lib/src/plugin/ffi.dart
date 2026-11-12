@@ -89,7 +89,7 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
   late final DynamicLibrary _library = DynamicLibrary.open(_nativeLibraryName);
 
   /// A pointer to the C++ handler class.
-  late final Pointer<NativePlugin> _plugin;
+  Pointer<NativePlugin> _plugin = nullptr;
 
   bool _isReady = false;
 
@@ -137,7 +137,9 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
             ' format.\nYou can get one by searching GUID generators online',
       );
     }
-    _plugin = _bindings.createPlugin();
+    if (_plugin == nullptr) {
+      _plugin = _bindings.createPlugin();
+    }
     instance = this;
     userCallback = onDidReceiveNotificationResponse;
     final Completer<bool> completer = Completer<bool>();
@@ -150,8 +152,7 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
         _isReady = true;
         completer.complete(true);
       } else {
-        // Releases the native worker; a failed instance cannot be reused.
-        _disposeRequested = true;
+        // Native registration was cleared on the worker; the same instance can retry.
         userCallback = null;
         final NativeLaunchDetails? details = _details;
         _details = null;
@@ -171,11 +172,11 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
       finish(success);
     });
     final NativeCallable<NativeNotificationCallbackFunction> callback =
-        NativeCallable<NativeNotificationCallbackFunction>.listener(
-          (NativeLaunchDetails details) =>
-              _onDidReceiveNotificationResponse(details),
-        );
-    _launchCallback = callback;
+        _launchCallback ??=
+            NativeCallable<NativeNotificationCallbackFunction>.listener(
+              (NativeLaunchDetails details) =>
+                  _onDidReceiveNotificationResponse(details),
+            );
     _initialization = completer.future;
     // dispose() waits for the queued init, like any other in-flight native call.
     _beginBlockingCall();
@@ -215,18 +216,16 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
 
   @override
   void dispose() {
-    if (!_isReady && !_disposeRequested && _initialization == null) {
+    if (_plugin == nullptr) {
       return;
     }
-    if (_isReady || _initialization != null) {
-      _isReady = false;
-      _disposeRequested = true;
-      userCallback = null;
-      final NativeLaunchDetails? details = _details;
-      _details = null;
-      if (details != null) {
-        _bindings.freeLaunchDetails(details);
-      }
+    _isReady = false;
+    _disposeRequested = true;
+    userCallback = null;
+    final NativeLaunchDetails? details = _details;
+    _details = null;
+    if (details != null) {
+      _bindings.freeLaunchDetails(details);
     }
     _finishDisposeIfIdle();
   }
@@ -249,6 +248,7 @@ class FlutterLocalNotificationsWindows extends WindowsNotificationsBase {
       _nativeDisposalStarted = false;
       return;
     }
+    _plugin = nullptr;
     _disposeRequested = false;
     _launchCallback?.close();
     _launchCallback = null;
