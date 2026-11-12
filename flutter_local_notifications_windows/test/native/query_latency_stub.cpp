@@ -19,9 +19,11 @@ NativePlugin* createPlugin() {
   return new NativePlugin();
 }
 bool init(
-  NativePlugin* plugin, char*, char*, char*, char*, NativeNotificationCallback callback
+  NativePlugin* plugin, char*, char*, char*, char*, NativeNotificationCallback callback,
+  NativeInitCallback onReady
 ) {
   plugin->callback = callback;
+  onReady(true);
   return true;
 }
 void disposePlugin(NativePlugin* plugin) {
